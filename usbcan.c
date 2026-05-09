@@ -121,9 +121,12 @@ int usbcan_send(struct ucan *can, struct can_frame *cf)
     int done;
     char data[666];
     can_frame2str(cf, data);
-    // printf("send len: %d\n", strlen(data));
+    //printf("send len: %d\n", strlen(data));
     pthread_mutex_lock(&can->mutex); // 加锁
+    printf("send: %s\n", data);
+    printf("sending: %d\n", strlen(data));
     libusb_bulk_transfer(can->udh, EP_OUT, data, strlen(data), &done, 1000);
+    printf("send done: %d\n", strlen(data));
     pthread_mutex_unlock(&can->mutex); // 加锁
     return done;
 }
@@ -132,21 +135,23 @@ int usbcan_recv(struct ucan *can, struct can_frame *cf)
 {
     int r;
     int done = 0;
-    char buf[256];
+    char buf[666];
 
     pthread_mutex_lock(&can->mutex); // 加锁
-    r = libusb_bulk_transfer(can->udh, EP_IN, buf, 256, &done, 10);
+    //printf(".\n");
+    r = libusb_bulk_transfer(can->udh, EP_IN, buf, 666, &done, 5);
+    //printf("recv done\n");
     pthread_mutex_unlock(&can->mutex); // 加锁
     if (r == 0) {
         buf[done] = 0;
-        printf("%s\n", buf);
+        printf("recv: %s\n", buf);
         str2can_frame(cf, buf);
-        #if 0
-        printf("ftype: %c\n", cf.ftype);
-        printf("can id : 0x%x\n", cf.id);
-        printf("dlc : 0x%x\n", cf.dlc);
-        for (int i = 0;i<2*dlc2len[cf.dlc];i++) {
-    	printf("data: %x, ", cf.data[i]);
+        #if 1
+        printf("ftype: %c\n", cf->ftype);
+        printf("can id : 0x%x\n", cf->id);
+        printf("dlc : 0x%x\n", cf->dlc);
+        for (int i = 0;i<2*dlc2len[cf->dlc];i++) {
+    	    printf("data: %x, ", cf->data[i]);
         }
         #endif
     }

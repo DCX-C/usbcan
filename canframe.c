@@ -58,6 +58,7 @@ void get_usbcan_frame(struct can_frame *cf, struct usb_can_frame *ucf)
     } else {
         sprintf(ucf->id, CANSTRF_STDID, cf->id);
     }
+    printf("id: 0x%x, ids: %s\n", cf->id, ucf->id);
     
     ucf->dlc = dlc2udlc[cf->dlc];
     char data_str[16];
