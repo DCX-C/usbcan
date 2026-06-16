@@ -31,6 +31,7 @@ void get_can_frame(struct can_frame *cf, struct usb_can_frame *ucf)
     cf->ftype = ucf->ftype;
     strlbuf[0] = ucf->dlc;
     cf->dlc = strtol(strlbuf, NULL, 16);
+    cf->dlc &= 0xf;
     strcpy(strlbuf, ucf->id);
     cf->id = strtol(strlbuf, NULL, 16);
     // printf("ucf->cf\n");
@@ -38,9 +39,9 @@ void get_can_frame(struct can_frame *cf, struct usb_can_frame *ucf)
     // printf("can id : 0x%x\n", cf->id);
     // printf("dlc : 0x%x\n", cf->dlc);
     for (int i = 0;i<2*dlc2len[cf->dlc];i++) {
-        printf("%2x ", ucf->data[i]);
+        //printf("%2x ", ucf->data[i]);
     }
-    printf("\n");
+    //printf("\n");
     for (int i = 0;i<dlc2len[cf->dlc];i++) {
         memcpy(strlbuf, &ucf->data[2*i], 2);
         strlbuf[2] = 0;
@@ -121,11 +122,14 @@ void can_frame2str(struct can_frame *f, char *str)
 
 void str2can_frame(struct can_frame *f, char *str)
 {
-    struct usb_can_frame *uf = malloc(sizeof(struct usb_can_frame) + 2*dlc2len[0xf]+1);
-    if (!uf) {
-        printf("malloc uf fail, %s\r\n", __FUNCTION__);
-        return;
-    }
+    struct usb_can_frame cuf;
+    struct usb_can_frame *uf = &cuf;
+    //struct usb_can_frame *uf = malloc(sizeof(struct usb_can_frame) + 2*dlc2len[0xf]+1);
+    //if (!uf) {
+    //    printf("malloc uf fail, %s\r\n", __FUNCTION__);
+    //    return;
+    //}
+    //memset((void *)uf, 0, sizeof(cuf));
 
     uint32_t dlc;
     char dlc_str[2] = {0};
@@ -149,8 +153,9 @@ void str2can_frame(struct can_frame *f, char *str)
         memcpy(uf->data, &str[5], 2*dlc2len[dlc]);
         uf->data[2*dlc2len[dlc]] = 0;
     }
+    
     get_can_frame(f, uf);
-    free(uf);
+    //free(uf);
 }
 
 

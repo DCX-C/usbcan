@@ -14,6 +14,18 @@
 
 sem_t sem_recv;
 
+struct cfrb {
+    struct can_frame cf[8];
+    int rp;
+    int wp;
+    int size;
+};
+
+struct cfrb rbcf = {
+    .rp = 0,
+    .wp = 0,
+    .size = 8,
+};
 volatile struct can_frame cf_recv;
 void * cf_recv_thread(void *arg)
 {   
@@ -21,8 +33,14 @@ void * cf_recv_thread(void *arg)
     int r;
     while(1)
     {
-        r = usbcan_recv(can, &cf_recv);
-        if (!r) {
+        // r = usbcan_recv(can, &cf_recv);
+        r = usbcan_recv(can, &rbcf.cf[rbcf.wp]);
+        if (r) {
+            rbcf.wp++;
+            rbcf.wp %= rbcf.size;
+            if (rbcf.wp == rbcf.rp) {
+                printf("rb full\n");
+            }
             sem_post(&sem_recv);
             printf("sem post\n");
         }
@@ -149,6 +167,64 @@ int usbcanfd_frame_test(struct ucan *can)
     return 0;
 }
 
+int usbcan_frame_txtest()
+{
+    int ret = 0;
+    int mode[] = {
+        CAN_STD_FRAME, CAN_ETX_FRAME,
+        CANFD_STD_FRAME, CANFD_EXT_FRAME,
+        CANFD_STD_FRAME_BRS, CANFD_EXT_FRAME_BRS,
+    };
+    for(int m=2;m<sizeof(mode)/sizeof(mode[0]);m++)
+    {
+        for (int i = m*66;i<m*66+0x800;)
+        {
+            sem_wait(&sem_recv);
+            printf("i = 0x%x\n", i);
+            while(rbcf.rp != rbcf.wp)
+            {
+                // printf("ftype: 	[%c]   \n", rbcf.cf[rbcf.rp].ftype);
+                // printf("id: 	[0x%x] \n",  rbcf.cf[rbcf.rp].id);
+                // printf("dlc: 	[0x%x] \n",  rbcf.cf[rbcf.rp].dlc);
+                if (rbcf.cf[rbcf.rp].id != ((m&1) ? (i*99&0x1fffffff) : (i&0x7ff))) {
+                    printf("err, id, dst: 0x%x, real: 0x%x\n", 
+                        (m&1) ? (i*99&0x1fffffff) : (i&0x7ff),
+                        rbcf.cf[rbcf.rp].id);
+          		ret = 1;
+                }
+                
+                if (rbcf.cf[rbcf.rp].dlc != ((m>1) ? (i%16) : (i%8))) {
+                    printf("err, dlc, dst: %d, real: %x\n", 
+                        ((m>1) ? (i%16) : (i%8)), rbcf.cf[rbcf.rp].dlc);
+                        ret = 2;
+                }
+                
+                if (rbcf.cf[rbcf.rp].ftype != mode[m]) {
+                    printf("err, mode, dst: %c, real: %c\n", 
+                        mode[m], rbcf.cf[rbcf.rp].ftype);
+                        ret = 3;
+                }
+
+		printf("len = %d\n", dlc2len[rbcf.cf[rbcf.rp].dlc]);
+                for (int l = 0;l<dlc2len[rbcf.cf[rbcf.rp].dlc];l++) {
+                    if (((rbcf.cf[rbcf.rp].id+l)&0xff) != rbcf.cf[rbcf.rp].data[l]) {
+                        printf("err, data[%d], dst: 0x%x, real: 0x%x\n", l,
+                            (rbcf.cf[rbcf.rp].id+l)&0xff, rbcf.cf[rbcf.rp].data[l]);
+                            ret = 4;
+                    }
+                }
+                i++;
+                rbcf.rp++;
+                rbcf.rp %= rbcf.size;
+                if (ret) {
+                    //return ret;
+                }
+            }
+        }
+    }
+    return ret;
+}
+
 
 
 int main()
@@ -162,9 +238,7 @@ int main()
     cf.data[0]	= 1;
     
     
-    usbcan_recv(can, &cf);
-    usbcan_recv(can, &cf);
-    usbcan_recv(can, &cf);
+    while(usbcan_recv(can, &cf));
     usbcan_send(can, &cf);
    
     sem_init(&sem_recv, 0, 0);
@@ -173,19 +247,18 @@ int main()
         printf("ticker thread create fail\n");
         return 1;
     } 
-    printf("pthread id:%d, create\n", tid);
+    printf("pthread id:%ld, create\n", tid);
     
-    while(1)
-    {
-        if (usbcan20_frame_test(can)) {
-            printf("usbcan20_frame_test fail\n");
-            break;
-        }
-        if (usbcanfd_frame_test(can)) {
-            printf("usbcanfd_frame_test fail\n");
-            break;
-        }
-    }
+    usbcan_frame_txtest();
+
+    // if (usbcan20_frame_test(can)) {
+    //     printf("usbcan20_frame_test fail\n");
+    //     break;
+    // }
+    // if (usbcanfd_frame_test(can)) {
+    //     printf("usbcanfd_frame_test fail\n");
+    //     break;
+    // }
     
     sem_destroy(&sem_recv);
     usbcan_exit(can);

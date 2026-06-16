@@ -21,14 +21,14 @@ struct can_frame {
     char ftype;
     uint32_t id;
     uint32_t dlc;
-    char data[64];
+    unsigned char data[64];
 };
 
 struct usb_can_frame {
     char ftype;
     char id[9];
     char dlc;
-    char data[];
+    char data[256];
 };
 
 void can_frame2str(struct can_frame *f, char *str);

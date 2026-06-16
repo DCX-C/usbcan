@@ -135,27 +135,45 @@ int usbcan_recv(struct ucan *can, struct can_frame *cf)
 {
     int r;
     int done = 0;
-    char buf[666];
+    char buf[512];
+    int ofs = 0;
 
-    pthread_mutex_lock(&can->mutex); // 加锁
-    //printf(".\n");
-    r = libusb_bulk_transfer(can->udh, EP_IN, buf, 666, &done, 5);
-    //printf("recv done\n");
-    pthread_mutex_unlock(&can->mutex); // 加锁
+    
+cc:
+    r = libusb_bulk_transfer(can->udh, EP_IN, buf+ofs, 512-ofs, &done, 100);
+    
     if (r == 0) {
-        buf[done] = 0;
-        printf("recv: %s\n", buf);
+        printf("recv %d %d\n", done, buf[ofs+done-1]);
+        buf[ofs+done] = 0;
+        if (done == 64 && buf[done-1] != 13) {
+            ofs += done;
+            goto cc;
+        }
+        for (int i = 0;i<done+ofs-1;i++)
+        {
+	    printf("%c ", buf[i]);
+	}
+	printf("\n");
+        printf("recv: %s, %d bytes\n", buf, done);
         str2can_frame(cf, buf);
         #if 1
         printf("ftype: %c\n", cf->ftype);
         printf("can id : 0x%x\n", cf->id);
         printf("dlc : 0x%x\n", cf->dlc);
         for (int i = 0;i<2*dlc2len[cf->dlc];i++) {
-    	    printf("data: %x, ", cf->data[i]);
+    	    //printf("data: %x, ", cf->data[i]);
         }
         #endif
+    } else {
+    	if (r != LIBUSB_ERROR_TIMEOUT) {
+    	    printf("recv err: %d\n", r);
+    	}
     }
-    return r;
+   
+    if (r == 0) 
+	return done;
+    else 
+        return 0;
 }
 
 
